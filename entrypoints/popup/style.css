@@ -1,0 +1,6 @@
+@import '../../assets/global.css';
+
+#root {
+  width: 380px;
+  min-height: 560px;
+}

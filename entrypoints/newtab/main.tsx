@@ -1,0 +1,13 @@
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { Dashboard } from '@/components/Dashboard';
+import './style.css';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <ErrorBoundary>
+      <Dashboard />
+    </ErrorBoundary>
+  </React.StrictMode>,
+);

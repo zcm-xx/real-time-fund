@@ -1,0 +1,5 @@
+@import '../../assets/global.css';
+
+#root {
+  min-height: 100vh;
+}
