@@ -92,11 +92,15 @@ export interface AppSettings {
 export interface FundSearchResult {
   CODE: string;
   NAME: string;
+  /** 700=基金，100=沪市等，搜索接口会混入股票 */
+  CATEGORY?: number;
+  CATEGORYDESC?: string;
+  STOCKMARKET?: string | null;
   FundBaseInfo?: {
     SHORTNAME?: string;
     DWJZ?: number;
     FTYPE?: string;
-  };
+  } | null;
 }
 
 export interface FundValuationExpansion {
@@ -168,6 +172,8 @@ export interface StockDetailResponse {
   f116?: number;
   f117?: number;
   f127?: string;
+  /** 价格小数位（东方财富字段） */
+  f59?: number;
   decimal?: number;
 }
 

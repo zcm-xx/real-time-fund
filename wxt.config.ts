@@ -21,6 +21,12 @@ export default defineConfig({
     host_permissions: [
       'http://localhost:3001/*',
       'https://tiantian-fund-api.vercel.app/*',
+      'https://qt.gtimg.cn/*',
+      'https://web.ifzq.gtimg.cn/*',
+      'https://money.finance.sina.com.cn/*',
+      'https://push2.eastmoney.com/*',
+      'https://push2his.eastmoney.com/*',
+      'https://push2delay.eastmoney.com/*',
     ],
     action: {
       default_title: '基金股票助手',

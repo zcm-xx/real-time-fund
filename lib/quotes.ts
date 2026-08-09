@@ -17,7 +17,7 @@ import {
   sortWatchlist,
 } from '@/lib/groups';
 import { getAlerts, getHoldings, mergeQuoteTargets, saveAlerts, saveHoldings } from '@/lib/holdings';
-import { DEFAULT_SETTINGS, STORAGE_KEYS } from '@/utils/constants';
+import { DEFAULT_GROUP, DEFAULT_SETTINGS, STORAGE_KEYS } from '@/utils/constants';
 import { getQuoteKey } from '@/utils/format';
 import { detectStockMarket } from '@/utils/market';
 
@@ -50,22 +50,40 @@ export async function getAppState(): Promise<AppState> {
     STORAGE_KEYS.lastRefreshAt,
     STORAGE_KEYS.holdings,
     STORAGE_KEYS.alerts,
+    STORAGE_KEYS.groups,
   ]);
 
   const watchlist = normalizeWatchlist(
     (result[STORAGE_KEYS.watchlist] as WatchlistItem[] | undefined) ?? [],
   );
-  const groups = await getGroups();
-  const holdings = await getHoldings();
-  const alerts = await getAlerts();
+  const groups = (result[STORAGE_KEYS.groups] as WatchlistGroup[] | undefined)
+    ?.length
+    ? ([...(result[STORAGE_KEYS.groups] as WatchlistGroup[])].sort(
+        (a, b) => a.order - b.order,
+      ))
+    : [DEFAULT_GROUP];
+  const holdings =
+    (result[STORAGE_KEYS.holdings] as import('@/api/types').Holding[] | undefined) ??
+    [];
+  const alerts =
+    (result[STORAGE_KEYS.alerts] as import('@/api/types').PriceAlert[] | undefined) ??
+    [];
+  const storedSettings = result[STORAGE_KEYS.settings] as
+    | Partial<AppSettings>
+    | undefined;
+  const settings = { ...DEFAULT_SETTINGS, ...storedSettings };
+  if (settings.apiBaseUrl === 'http://localhost:3000') {
+    settings.apiBaseUrl = 'http://localhost:3001';
+  }
 
   return {
     watchlist: sortWatchlist(watchlist),
     groups,
     holdings,
     alerts,
-    quotes: (result[STORAGE_KEYS.quotes] as Record<string, Quote> | undefined) ?? {},
-    settings: await getSettings(),
+    quotes:
+      (result[STORAGE_KEYS.quotes] as Record<string, Quote> | undefined) ?? {},
+    settings,
     lastRefreshAt:
       (result[STORAGE_KEYS.lastRefreshAt] as number | undefined) ?? null,
   };

@@ -17,10 +17,10 @@ export const DEFAULT_GROUP: import('@/api/types').WatchlistGroup = {
 };
 
 export const DEFAULT_SETTINGS: import('@/api/types').AppSettings = {
-  apiMode: 'local',
+  apiMode: 'vercel',
   apiBaseUrl: 'http://localhost:3001',
   vercelApiUrl: 'https://tiantian-fund-api.vercel.app/api/action',
-  refreshIntervalMinutes: 1,
+  refreshIntervalMinutes: 2,
   colorScheme: 'china',
   notificationsEnabled: true,
   alertCooldownMinutes: 30,

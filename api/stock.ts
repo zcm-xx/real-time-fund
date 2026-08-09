@@ -1,4 +1,14 @@
-import { apiRequest, unwrapEastmoneyData } from '@/api/client';
+import {
+  fetchEastmoneyStockDetail,
+  fetchEastmoneyStockKline,
+  fetchEastmoneyStockTrends,
+} from '@/api/eastmoney';
+import {
+  fetchSinaStockKline,
+  fetchTencentStockDetail,
+  fetchTencentStockKline,
+  fetchTencentStockQuote,
+} from '@/api/tencent';
 import type {
   AppSettings,
   IndexQuote,
@@ -14,7 +24,7 @@ export async function fetchStockQuote(
   code: string,
   name: string,
   market = detectStockMarket(code),
-  settings?: AppSettings,
+  _settings?: AppSettings,
 ): Promise<Quote> {
   const base: Quote = {
     code,
@@ -28,55 +38,38 @@ export async function fetchStockQuote(
   };
 
   try {
-    const raw = await apiRequest<StockDetailResponse | { data?: StockDetailResponse }>(
-      '/stockGet',
-      { type: market, code },
-      settings,
-    );
-    const data = unwrapEastmoneyData(raw);
-
-    const decimal = data.decimal ?? 2;
-    const scale = 10 ** decimal;
-    const price = scaleField(data.f43, scale);
-    const change = scaleField(data.f169, scale);
-    const changePercent = data.f170 !== undefined ? data.f170 / 100 : null;
-    const prevClose =
-      price !== null && change !== null ? price - change : scaleField(data.f60, scale);
-
-    return {
-      code: data.f57 || code,
-      name: data.f58 || name,
-      type: 'stock',
-      price,
-      change,
-      changePercent,
-      prevClose,
-      updatedAt: new Date().toISOString(),
-    };
-  } catch (error) {
-    return {
-      ...base,
-      error: error instanceof Error ? error.message : '获取失败',
-    };
+    return await fetchTencentStockQuote(code, name, market);
+  } catch (tencentError) {
+    try {
+      const data = await fetchEastmoneyStockDetail(code, market);
+      return parseStockQuoteFromDetail(data, code, name);
+    } catch {
+      return {
+        ...base,
+        error:
+          tencentError instanceof Error
+            ? tencentError.message
+            : '获取失败',
+      };
+    }
   }
 }
 
 function scaleField(value: number | undefined, scale: number): number | null {
-  if (value === undefined) return null;
+  if (value === undefined || Number.isNaN(value)) return null;
   return value / scale;
 }
 
 export async function fetchStockDetail(
   code: string,
   market = detectStockMarket(code),
-  settings?: AppSettings,
+  _settings?: AppSettings,
 ): Promise<StockDetailResponse> {
-  const raw = await apiRequest<StockDetailResponse | { data?: StockDetailResponse }>(
-    '/stockGet',
-    { type: market, code },
-    settings,
-  );
-  return unwrapEastmoneyData(raw);
+  try {
+    return await fetchTencentStockDetail(code, market);
+  } catch {
+    return fetchEastmoneyStockDetail(code, market);
+  }
 }
 
 export function parseStockSparkline(
@@ -97,15 +90,14 @@ export function parseStockSparkline(
 export async function fetchStockSparkline(
   code: string,
   market = detectStockMarket(code),
-  settings?: AppSettings,
+  _settings?: AppSettings,
 ): Promise<number[]> {
-  const raw = await apiRequest<StockTrendsResponse | { data?: StockTrendsResponse }>(
-    '/stockTrends2',
-    { type: market, code, ndays: 1 },
-    settings,
-  );
-  const data = unwrapEastmoneyData(raw);
-  return parseStockSparkline(data.trends, data.decimal ?? 2);
+  try {
+    const data: StockTrendsResponse = await fetchEastmoneyStockTrends(code, market);
+    return parseStockSparkline(data.trends, data.decimal ?? 0);
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchStockKline(
@@ -120,7 +112,7 @@ export async function fetchStockKline(
 
 export function parseStockKlineBars(
   klines: string[] | undefined,
-  decimal = 2,
+  decimal = 0,
 ): KlineBar[] {
   if (!klines?.length) return [];
   const scale = 10 ** decimal;
@@ -141,16 +133,29 @@ export function parseStockKlineBars(
 export async function fetchStockKlineBars(
   code: string,
   market = detectStockMarket(code),
-  settings?: AppSettings,
+  _settings?: AppSettings,
   days = 60,
 ): Promise<KlineBar[]> {
-  const raw = await apiRequest<StockKlineResponse | { data?: StockKlineResponse }>(
-    '/stockKline',
-    { type: market, code, klt: 101, lmt: days, fqt: 1 },
-    settings,
-  );
-  const data = unwrapEastmoneyData(raw);
-  return parseStockKlineBars(data.klines, data.decimal ?? 2);
+  try {
+    return await fetchTencentStockKline(code, market, days);
+  } catch {
+    // try next
+  }
+  try {
+    return await fetchSinaStockKline(code, market, days);
+  } catch {
+    // try next
+  }
+  try {
+    const data: StockKlineResponse = await fetchEastmoneyStockKline(
+      code,
+      market,
+      days,
+    );
+    return parseStockKlineBars(data.klines, data.decimal ?? 0);
+  } catch {
+    return [];
+  }
 }
 
 const MARKET_INDICES = [
@@ -160,16 +165,15 @@ const MARKET_INDICES = [
 ] as const;
 
 export async function fetchMarketIndices(
-  settings?: AppSettings,
+  _settings?: AppSettings,
 ): Promise<IndexQuote[]> {
   const results = await Promise.all(
     MARKET_INDICES.map(async ({ code, name, market }) => {
       try {
-        const data = await fetchStockDetail(code, market, settings);
-        const quote = parseStockQuoteFromDetail(data, code, name);
+        const quote = await fetchStockQuote(code, name, market);
         return {
           code,
-          name: data.f58 || name,
+          name: quote.name || name,
           price: quote.price,
           changePercent: quote.changePercent,
         };
@@ -186,13 +190,15 @@ export function parseStockQuoteFromDetail(
   code: string,
   name: string,
 ): Quote {
-  const decimal = data.decimal ?? 2;
+  const decimal = data.decimal ?? data.f59 ?? 2;
   const scale = 10 ** decimal;
   const price = scaleField(data.f43, scale);
   const change = scaleField(data.f169, scale);
   const changePercent = data.f170 !== undefined ? data.f170 / 100 : null;
   const prevClose =
-    price !== null && change !== null ? price - change : scaleField(data.f60, scale);
+    price !== null && change !== null
+      ? price - change
+      : scaleField(data.f60, scale);
 
   return {
     code: data.f57 || code,

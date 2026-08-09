@@ -6,7 +6,7 @@ import {
   parseStockQuoteFromDetail,
 } from '@/api/stock';
 import { KlineChart } from '@/components/KlineChart';
-import { LargeChart, MiniChart } from '@/components/MiniChart';
+import { LargeChart } from '@/components/MiniChart';
 import type { AppSettings, KlineBar, Quote, StockDetailResponse } from '@/api/types';
 import { getSettings } from '@/lib/quotes';
 import { detectStockMarket } from '@/utils/market';
@@ -31,51 +31,87 @@ export function StockDetailView({ code, market: marketProp }: StockDetailViewPro
   const [klineBars, setKlineBars] = useState<KlineBar[]>([]);
   const [chartMode, setChartMode] = useState<'intraday' | 'kline'>('intraday');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [chartLoading, setChartLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
+    let cancelled = false;
+
+    async function loadQuote() {
       setLoading(true);
+      setError(null);
       try {
         const s = await getSettings();
+        if (cancelled) return;
         setSettings(s);
-        const [d, sp, kl] = await Promise.all([
-          fetchStockDetail(code, market, s),
+        const d = await fetchStockDetail(code, market, s);
+        if (cancelled) return;
+        setDetail(d);
+        setQuote(parseStockQuoteFromDetail(d, code, d.f58 || code));
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : '行情加载失败');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    async function loadCharts() {
+      setChartLoading(true);
+      try {
+        const s = await getSettings();
+        const [spResult, klResult] = await Promise.allSettled([
           fetchStockSparkline(code, market, s),
           fetchStockKlineBars(code, market, s, 90),
         ]);
-        setDetail(d);
-        setQuote(parseStockQuoteFromDetail(d, code, d.f58 || code));
-        setIntraday(sp);
-        setKlineBars(kl);
+        if (cancelled) return;
+        if (spResult.status === 'fulfilled') setIntraday(spResult.value);
+        if (klResult.status === 'fulfilled') setKlineBars(klResult.value);
       } finally {
-        setLoading(false);
+        if (!cancelled) setChartLoading(false);
       }
     }
-    void load();
+
+    void loadQuote();
+    void loadCharts();
+
+    return () => {
+      cancelled = true;
+    };
   }, [code, market]);
 
-  if (loading) {
+  if (loading && !detail) {
     return <div className="py-20 text-center text-sm text-gray-400">加载中...</div>;
+  }
+
+  if (error && !detail) {
+    return (
+      <div className="rounded-xl bg-amber-50 px-4 py-8 text-center text-sm text-amber-700">
+        {error}
+      </div>
+    );
   }
 
   const scheme = settings?.colorScheme ?? 'china';
   const changePercent = quote?.changePercent ?? null;
-  const decimal = detail?.decimal ?? 2;
+  const decimal = detail?.decimal ?? detail?.f59 ?? 2;
   const scale = 10 ** decimal;
+  const stockName = detail?.f58 || quote?.name || code;
 
   return (
     <div className="space-y-4">
       <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">
-              {detail?.f58 || code}
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-bold text-gray-900" title={stockName}>
+              {stockName}
             </h1>
             <p className="mt-1 text-sm text-gray-500">
               {code} · {detail?.f127 || 'A股'}
             </p>
           </div>
-          <div className="text-right">
+          <div className="shrink-0 text-right">
             <div className="text-2xl font-bold tabular-nums">
               {formatPrice(quote?.price ?? null)}
             </div>
@@ -101,7 +137,15 @@ export function StockDetailView({ code, market: marketProp }: StockDetailViewPro
             label="日K (90日)"
           />
         </div>
-        {chartMode === 'intraday' ? (
+        {chartLoading && chartMode === 'intraday' && intraday.length === 0 ? (
+          <div className="flex h-[200px] items-center justify-center text-sm text-gray-400">
+            分时加载中...
+          </div>
+        ) : chartLoading && chartMode === 'kline' && klineBars.length === 0 ? (
+          <div className="flex h-[240px] items-center justify-center text-sm text-gray-400">
+            K线加载中...
+          </div>
+        ) : chartMode === 'intraday' ? (
           <LargeChart
             points={intraday}
             colorScheme={scheme}
@@ -156,17 +200,6 @@ export function StockDetailView({ code, market: marketProp }: StockDetailViewPro
           />
         </dl>
       </div>
-
-      {intraday.length > 1 && (
-        <div className="flex items-center justify-center rounded-xl bg-white p-4 ring-1 ring-gray-100">
-          <MiniChart
-            points={intraday}
-            width={400}
-            height={60}
-            colorScheme={scheme}
-          />
-        </div>
-      )}
     </div>
   );
 }

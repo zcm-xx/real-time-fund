@@ -3,10 +3,8 @@ import { fetchFundRank } from '@/api/discover';
 import { fetchFundNavHistory } from '@/api/fund';
 import { fetchMarketIndices, fetchStockKlineBars } from '@/api/stock';
 import { KlineChart } from '@/components/KlineChart';
-import { MiniChart } from '@/components/MiniChart';
 import type { FundNavPoint, IndexQuote, KlineBar, WatchlistItem } from '@/api/types';
 import { useAppStore, useStorageSync } from '@/hooks/useAppStore';
-import { useSparkline } from '@/hooks/useSparkline';
 import { getSettings } from '@/lib/quotes';
 import {
   formatChange,
@@ -308,7 +306,7 @@ function DashboardWatchRow({
   colorScheme: import('@/api/types').ColorScheme;
   onSelect: () => void;
 }) {
-  const sparkline = useSparkline(item);
+  const displayName = quote?.name || item.name;
 
   return (
     <li>
@@ -319,15 +317,9 @@ function DashboardWatchRow({
           selected ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-gray-50'
         }`}
       >
-        <MiniChart
-          points={sparkline}
-          width={48}
-          height={22}
-          colorScheme={colorScheme}
-        />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">
-            {quote?.name || item.name}
+          <div className="truncate text-sm font-medium" title={displayName}>
+            {displayName}
           </div>
           <div className="text-[10px] text-gray-400">{item.code}</div>
         </div>

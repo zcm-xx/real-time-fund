@@ -1,8 +1,6 @@
 import { useRef, useState } from 'react';
-import { MiniChart } from '@/components/MiniChart';
 import type { Quote, WatchlistGroup, WatchlistItem } from '@/api/types';
 import { useAppStore } from '@/hooks/useAppStore';
-import { useSparkline } from '@/hooks/useSparkline';
 import { itemsInGroup } from '@/lib/groups';
 import {
   formatPercent,
@@ -38,9 +36,9 @@ function WatchlistItemRow({
   const togglePinned = useAppStore((s) => s.togglePinned);
   const colorScheme = useAppStore((s) => s.settings.colorScheme);
   const changePercent = quote?.changePercent ?? null;
-  const sparkline = useSparkline(item);
   const key = getQuoteKey(item.code, item.type);
   const [showMove, setShowMove] = useState(false);
+  const displayName = quote?.name || item.name;
 
   return (
     <div
@@ -83,22 +81,13 @@ function WatchlistItemRow({
 
       <button
         type="button"
-        onClick={() =>
-          openDetailPage(item.type, item.code, item.market)
-        }
+        onClick={() => openDetailPage(item.type, item.code, item.market)}
         className="flex min-w-0 flex-1 items-center gap-2 text-left"
       >
-        <MiniChart
-          points={sparkline}
-          colorScheme={colorScheme}
-          width={64}
-          height={26}
-        />
-
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-medium text-gray-900">
-              {quote?.name || item.name}
+            <span className="truncate text-sm font-medium text-gray-900" title={displayName}>
+              {displayName}
             </span>
             <span className="shrink-0 rounded bg-gray-100 px-1 py-0.5 text-[10px] text-gray-500">
               {item.type === 'fund' ? '基' : '股'}
@@ -181,8 +170,8 @@ export function Watchlist({ items, quotes, groupId }: WatchlistProps) {
   const reorderInGroup = useAppStore((s) => s.reorderInGroup);
   const groupItems = itemsInGroup(items, groupId);
   const dragKey = useRef<string | null>(null);
-  const overKey = useRef<string | null>(null);
-  const [, forceRender] = useState(0);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
 
   if (groupItems.length === 0) {
     return (
@@ -197,9 +186,10 @@ export function Watchlist({ items, quotes, groupId }: WatchlistProps) {
 
   function handleDrop() {
     const from = dragKey.current;
-    const to = overKey.current;
+    const to = dragOverKey;
     dragKey.current = null;
-    overKey.current = null;
+    setDraggingKey(null);
+    setDragOverKey(null);
 
     if (!from || !to || from === to) return;
 
@@ -214,7 +204,6 @@ export function Watchlist({ items, quotes, groupId }: WatchlistProps) {
     reordered.splice(toIdx, 0, fromItem);
 
     void reorderInGroup(groupId, reordered);
-    forceRender((n) => n + 1);
   }
 
   return (
@@ -227,14 +216,14 @@ export function Watchlist({ items, quotes, groupId }: WatchlistProps) {
             item={item}
             quote={quotes[key]}
             groups={groups}
-            isDragging={dragKey.current === key}
-            isDragOver={overKey.current === key}
+            isDragging={draggingKey === key}
+            isDragOver={dragOverKey === key}
             onDragStart={(k) => {
               dragKey.current = k;
+              setDraggingKey(k);
             }}
             onDragOver={(k) => {
-              overKey.current = k;
-              forceRender((n) => n + 1);
+              if (dragOverKey !== k) setDragOverKey(k);
             }}
             onDrop={handleDrop}
           />

@@ -118,6 +118,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await saveWatchlist(updated);
     set({ watchlist: updated });
     await get().refreshQuotes();
+
+    // 添加后若行情带回正式名称，写回自选避免一直显示代码
+    if (item.type === 'stock' || item.name === item.code) {
+      const quoteKey = `${item.type}:${item.code}`;
+      const quote = get().quotes[quoteKey];
+      if (quote?.name && quote.name !== item.code) {
+        const named = get().watchlist.map((w) =>
+          w.code === item.code && w.type === item.type
+            ? { ...w, name: quote.name }
+            : w,
+        );
+        await saveWatchlist(named);
+        set({ watchlist: named });
+      }
+    }
   },
 
   removeItem: async (code, type) => {
@@ -140,13 +155,39 @@ export const useAppStore = create<AppStore>((set, get) => ({
   refreshQuotes: async () => {
     set({ loading: true });
     try {
-      await browser.runtime.sendMessage({ type: 'REFRESH_QUOTES' });
-      const state = await getAppState();
-      set({
-        quotes: state.quotes,
-        lastRefreshAt: state.lastRefreshAt,
-        alerts: state.alerts,
-      });
+      const result = (await browser.runtime.sendMessage({
+        type: 'REFRESH_QUOTES',
+      })) as { ok?: boolean; quotes?: Record<string, Quote> } | undefined;
+      if (result?.quotes) {
+        set({
+          quotes: result.quotes,
+          lastRefreshAt: Date.now(),
+        });
+
+        // 用行情名称回填仍显示代码的自选
+        const { watchlist } = get();
+        let changed = false;
+        const named = watchlist.map((w) => {
+          if (w.type !== 'stock' || (w.name && w.name !== w.code)) return w;
+          const q = result.quotes![`${w.type}:${w.code}`];
+          if (q?.name && q.name !== w.code) {
+            changed = true;
+            return { ...w, name: q.name };
+          }
+          return w;
+        });
+        if (changed) {
+          await saveWatchlist(named);
+          set({ watchlist: named });
+        }
+      } else {
+        const state = await getAppState();
+        set({
+          quotes: state.quotes,
+          lastRefreshAt: state.lastRefreshAt,
+          alerts: state.alerts,
+        });
+      }
     } finally {
       set({ loading: false });
     }
@@ -301,11 +342,40 @@ export function useStorageSync() {
   useEffect(() => {
     void hydrate();
 
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
     const listener = (
       changes: { [key: string]: { newValue?: unknown } },
       area: string,
     ) => {
       if (area !== 'local') return;
+
+      // 行情刷新时只 patch quotes，避免全量 hydrate 造成卡顿
+      const onlyQuotes =
+        (changes[STORAGE_KEYS.quotes] || changes[STORAGE_KEYS.lastRefreshAt]) &&
+        !changes[STORAGE_KEYS.watchlist] &&
+        !changes[STORAGE_KEYS.groups] &&
+        !changes[STORAGE_KEYS.holdings] &&
+        !changes[STORAGE_KEYS.alerts];
+
+      if (onlyQuotes) {
+        const patch: Partial<AppStore> = {};
+        if (changes[STORAGE_KEYS.quotes]?.newValue) {
+          patch.quotes = changes[STORAGE_KEYS.quotes].newValue as Record<
+            string,
+            Quote
+          >;
+        }
+        if (changes[STORAGE_KEYS.lastRefreshAt]?.newValue != null) {
+          patch.lastRefreshAt = changes[STORAGE_KEYS.lastRefreshAt]
+            .newValue as number;
+        }
+        if (Object.keys(patch).length > 0) {
+          useAppStore.setState(patch);
+        }
+        return;
+      }
+
       if (
         changes[STORAGE_KEYS.quotes] ||
         changes[STORAGE_KEYS.watchlist] ||
@@ -314,12 +384,18 @@ export function useStorageSync() {
         changes[STORAGE_KEYS.alerts] ||
         changes[STORAGE_KEYS.lastRefreshAt]
       ) {
-        void hydrate();
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => {
+          void hydrate();
+        }, 80);
       }
     };
 
     browser.storage.onChanged.addListener(listener);
-    return () => browser.storage.onChanged.removeListener(listener);
+    return () => {
+      browser.storage.onChanged.removeListener(listener);
+      if (timer) clearTimeout(timer);
+    };
   }, [hydrate]);
 }
 
