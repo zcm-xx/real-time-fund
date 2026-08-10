@@ -17,7 +17,7 @@ export default defineConfig({
   manifest: {
     name: '基金股票助手',
     description: '自选基金与 A 股实时涨跌幅，仅供学习使用',
-    permissions: ['storage', 'alarms', 'notifications'],
+    permissions: ['storage', 'alarms', 'notifications', 'tabs'],
     host_permissions: [
       'http://localhost:3001/*',
       'https://tiantian-fund-api.vercel.app/*',

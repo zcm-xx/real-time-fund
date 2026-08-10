@@ -87,6 +87,8 @@ export interface AppSettings {
   alertCooldownMinutes: number;
   /** 财经网站页面浮窗 */
   floatWidgetEnabled: boolean;
+  /** 是否用扩展仪表盘覆盖 Chrome 新标签页 */
+  overrideNewTab: boolean;
 }
 
 export interface FundSearchResult {
@@ -290,4 +292,6 @@ export interface IndexQuote {
   name: string;
   price: number | null;
   changePercent: number | null;
+  /** 指数覆盖范围 / 代表板块说明 */
+  desc?: string;
 }

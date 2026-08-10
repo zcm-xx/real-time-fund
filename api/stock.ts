@@ -19,6 +19,7 @@ import type {
   StockTrendsResponse,
 } from '@/api/types';
 import { detectStockMarket } from '@/utils/market';
+import { MARKET_INDICES } from '@/utils/indices';
 
 export async function fetchStockQuote(
   code: string,
@@ -158,17 +159,11 @@ export async function fetchStockKlineBars(
   }
 }
 
-const MARKET_INDICES = [
-  { code: '000001', name: '上证指数', market: 1 },
-  { code: '399001', name: '深证成指', market: 0 },
-  { code: '399006', name: '创业板指', market: 0 },
-] as const;
-
 export async function fetchMarketIndices(
   _settings?: AppSettings,
 ): Promise<IndexQuote[]> {
   const results = await Promise.all(
-    MARKET_INDICES.map(async ({ code, name, market }) => {
+    MARKET_INDICES.map(async ({ code, name, market, desc }) => {
       try {
         const quote = await fetchStockQuote(code, name, market);
         return {
@@ -176,9 +171,10 @@ export async function fetchMarketIndices(
           name: quote.name || name,
           price: quote.price,
           changePercent: quote.changePercent,
+          desc,
         };
       } catch {
-        return { code, name, price: null, changePercent: null };
+        return { code, name, price: null, changePercent: null, desc };
       }
     }),
   );

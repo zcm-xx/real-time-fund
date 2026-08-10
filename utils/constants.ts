@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: import('@/api/types').AppSettings = {
   notificationsEnabled: true,
   alertCooldownMinutes: 30,
   floatWidgetEnabled: true,
+  overrideNewTab: false,
 };
 
 export const VERCEL_API_URL = DEFAULT_SETTINGS.vercelApiUrl;

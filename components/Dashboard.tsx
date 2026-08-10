@@ -102,12 +102,6 @@ export function Dashboard() {
     };
   }, [selected]);
 
-  useEffect(() => {
-    if (watchlist.length > 0 && !selected) {
-      setSelected(watchlist[0]);
-    }
-  }, [watchlist, selected]);
-
   if (!hydrated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 text-gray-400">
@@ -139,18 +133,26 @@ export function Dashboard() {
 
       <main className="mx-auto max-w-6xl space-y-6 px-6 py-6">
         {/* 大盘指数 */}
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
           {indices.map((idx) => (
             <div
               key={idx.code}
-              className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100"
+              className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100 sm:p-4"
+              title={idx.desc}
             >
-              <div className="text-sm text-gray-500">{idx.name}</div>
-              <div className="mt-1 text-2xl font-bold tabular-nums">
+              <div className="truncate text-xs font-medium text-gray-700 sm:text-sm">
+                {idx.name}
+              </div>
+              {idx.desc && (
+                <div className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-gray-400 sm:text-[11px]">
+                  {idx.desc}
+                </div>
+              )}
+              <div className="mt-1.5 text-lg font-bold tabular-nums sm:text-2xl">
                 {formatPrice(idx.price)}
               </div>
               <div
-                className={`text-sm font-medium tabular-nums ${getChangeColor(idx.changePercent, settings.colorScheme)}`}
+                className={`text-xs font-medium tabular-nums sm:text-sm ${getChangeColor(idx.changePercent, settings.colorScheme)}`}
               >
                 {formatPercent(idx.changePercent)}
               </div>

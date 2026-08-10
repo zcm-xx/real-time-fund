@@ -113,6 +113,34 @@ export function SettingsPanel({
       </label>
 
       <label className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm">
+        <span className="text-gray-700">覆盖新标签页</span>
+        <input
+          type="checkbox"
+          checked={settings.overrideNewTab}
+          onChange={(e) =>
+            void updateSettings({ overrideNewTab: e.target.checked })
+          }
+          className="h-4 w-4"
+        />
+      </label>
+      <p className="text-[10px] text-gray-400">
+        开启后，新建标签页显示仪表盘（地址栏为空白搜索框）；关闭后尝试恢复 Chrome 默认新标签页
+      </p>
+      {!settings.overrideNewTab && (
+        <button
+          type="button"
+          onClick={() =>
+            void browser.tabs.create({
+              url: `${browser.runtime.getURL('/newtab.html')}?dashboard=1`,
+            })
+          }
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+        >
+          在新标签页打开仪表盘
+        </button>
+      )}
+
+      <label className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm">
         <span className="text-gray-700">财经网站页面浮窗</span>
         <input
           type="checkbox"
